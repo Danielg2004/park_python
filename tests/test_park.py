@@ -15,7 +15,8 @@ def test_sell_tickets_pago_insuficiente(capsys):
 
 def test_reglas_de_ingreso_cerrada_sin_cupos_y_reuso(capsys):
     svc = ParkService()
-    a = svc.create_attraction("Río Aventura", 1, False)  # empieza cerrada
+    a = svc.create_attraction("Río Aventura", 2, False)  # capacidad 2
+
     t = svc.sell_tickets([TicketType.ADULT], cash=100.0)[0]
 
     # 1) Cerrada
@@ -24,21 +25,25 @@ def test_reglas_de_ingreso_cerrada_sin_cupos_y_reuso(capsys):
     assert ok1 is False
     assert "Atracción cerrada" in out1
 
-    # Abrir y entrar (consume 1 cupo)
+    # Abrir y entrar (consume 1 cupo; queda 1)
     assert svc.set_open(a.id, True) is True
     ok2 = svc.enter(t.id, a.id)
     assert ok2 is True
-    assert svc.attractions[a.id].capacity == 0
+    assert svc.attractions[a.id].capacity == 1
 
-    # 2) Reusar mismo ticket en misma atracción
+    # 2) Reusar mismo ticket en misma atracción (ahora sí debe detectar reuso)
     ok3 = svc.enter(t.id, a.id)
     out3 = capsys.readouterr().out
     assert ok3 is False
     assert "Ticket ya usado" in out3
 
-    # 3) Sin cupos con otro ticket
+    # 3) Sin cupos con otro ticket (agotar)
+    # Entramos con un ticket nuevo para consumir el último cupo
     t2 = svc.sell_tickets([TicketType.ADULT], cash=100.0)[0]
-    ok4 = svc.enter(t2.id, a.id)
+    assert svc.enter(t2.id, a.id) is True
+    # Un tercer ticket ya no entra por cupos
+    t3 = svc.sell_tickets([TicketType.ADULT], cash=100.0)[0]
+    ok4 = svc.enter(t3.id, a.id)
     out4 = capsys.readouterr().out
     assert ok4 is False
     assert "Sin cupos" in out4
